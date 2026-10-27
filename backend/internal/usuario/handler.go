@@ -1,6 +1,7 @@
 package usuario
 
 import (
+	"net"
 	"net/http"
 	"time"
 
@@ -23,14 +24,23 @@ func NovoHandler(svc *Service, producao bool) *Handler {
 	return &Handler{svc: svc, producao: producao}
 }
 
-func (h *Handler) definirCookie(w http.ResponseWriter, token string, duracao time.Duration) {
+// ehLocal diz se a requisição chegou por localhost (desenvolvimento).
+func ehLocal(host string) bool {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+func (h *Handler) definirCookie(w http.ResponseWriter, r *http.Request, token string, duracao time.Duration) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     NomeCookie,
 		Value:    token,
 		HttpOnly: true,
-		// Secure em produção (atrás de HTTPS). Em dev local é http puro —
-		// com Secure o navegador descartaria o cookie e ninguém logaria.
-		Secure:   h.producao,
+		// Secure sempre, menos em localhost (dev em http puro). Não depende
+		// de APP_ENV: a produção pode subir sem essa variável e o cookie
+		// continua protegido.
+		Secure:   h.producao || !ehLocal(r.Host),
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/api",
 		MaxAge:   int(duracao.Seconds()),
@@ -66,7 +76,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	h.definirCookie(w, token, DuracaoSessao)
+	h.definirCookie(w, r, token, DuracaoSessao)
 	return requisicao.JSON(w, http.StatusOK, u)
 }
 
@@ -87,7 +97,7 @@ func (h *Handler) configuracaoInicial(w http.ResponseWriter, r *http.Request) er
 	if err != nil {
 		return err
 	}
-	h.definirCookie(w, token, DuracaoSessao)
+	h.definirCookie(w, r, token, DuracaoSessao)
 	return requisicao.JSON(w, http.StatusCreated, u)
 }
 
@@ -97,7 +107,7 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	h.definirCookie(w, "", -time.Second)
+	h.definirCookie(w, r, "", -time.Second)
 	return requisicao.SemConteudo(w)
 }
 
