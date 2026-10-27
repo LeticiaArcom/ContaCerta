@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 
 	"meu-projeto/internal/config"
+	"meu-projeto/internal/usuario"
 )
 
 // Servidor guarda as dependências que os handlers precisam. Injeção manual
@@ -26,12 +27,14 @@ type Servidor struct {
 	db     *gorm.DB
 	redis  *redis.Client
 	router chi.Router
+
+	usuarios *usuario.Service
 }
 
 // Novo monta o router com toda a stack de middleware e as rotas. Devolve
 // http.Handler — cmd/server só chama Novo(...) e sobe um http.Server em cima.
 func Novo(cfg *config.Config, log *slog.Logger, gdb *gorm.DB, rdb *redis.Client) http.Handler {
-	s := &Servidor{cfg: cfg, log: log, db: gdb, redis: rdb, router: chi.NewRouter()}
+	s := &Servidor{cfg: cfg, log: log, db: gdb, redis: rdb, router: chi.NewRouter(), usuarios: usuario.NovoService(gdb)}
 
 	producao := cfg.Env == "production"
 
@@ -56,7 +59,8 @@ func Novo(cfg *config.Config, log *slog.Logger, gdb *gorm.DB, rdb *redis.Client)
 	s.router.Use(middleware.Recoverer)
 	s.router.Use(middleware.Compress(5))
 	s.router.Use(middleware.Timeout(30 * time.Second))
-	s.router.Use(limiteDeCorpo(1 << 20)) // 1 MB
+	// Limite de corpo é aplicado por grupo de rotas (ver rotas.go): 1 MB no
+	// geral e um limite maior só no upload de PDF.
 	s.router.Use(httprate.LimitBy(100, time.Minute, chaveDeCliente))
 	s.router.Use(s.origemPermitida)
 	s.router.Use(headersSeguros(producao))

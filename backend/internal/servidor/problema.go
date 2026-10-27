@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+
+	"meu-projeto/internal/apierro"
 )
 
 // Problema é a resposta de erro única do backend — ver padroes/09-contrato-api.md.
@@ -17,53 +19,23 @@ type Problema struct {
 	Campos map[string]string `json:"campos,omitempty"`
 }
 
-// ErroDominio é o erro que uma feature retorna quando já sabe o status/codigo
-// HTTP correto (não encontrado, conflito, validação...). Handlers devolvem
-// isto envolto com %w; o wrapper H() faz o resto.
-type ErroDominio struct {
-	Status int
-	Titulo string
-	Detail string
-	Codigo string
-	Campos map[string]string
-}
+// ErroDominio vive em internal/apierro (as features importam de lá — elas
+// não podem importar este pacote, que importa as features pra montar as
+// rotas). Os construtores abaixo são atalhos pro código deste pacote.
+type ErroDominio = apierro.ErroDominio
 
-func (e *ErroDominio) Error() string { return e.Detail }
-
-// Construtores dos erros de domínio mais comuns — usar estes em vez de criar
-// &ErroDominio{} solto em cada pacote, pra manter title/codigo consistentes.
-
-func NaoEncontrado(detalhe string) error {
-	return &ErroDominio{Status: http.StatusNotFound, Titulo: "Não encontrado", Detail: detalhe, Codigo: "nao_encontrado"}
-}
-
-func Conflito(detalhe string) error {
-	return &ErroDominio{Status: http.StatusConflict, Titulo: "Conflito", Detail: detalhe, Codigo: "conflito"}
-}
-
-func SemPermissao() error {
-	return &ErroDominio{Status: http.StatusForbidden, Titulo: "Sem permissão", Detail: "Você não tem acesso a este recurso.", Codigo: "sem_permissao"}
-}
-
-func NaoAutenticado(detalhe string) error {
-	return &ErroDominio{Status: http.StatusUnauthorized, Titulo: "Não autenticado", Detail: detalhe, Codigo: "token_ausente"}
-}
-
-// Validacao recebe um campo -> mensagem. Sempre 422.
+func NaoEncontrado(detalhe string) error  { return apierro.NaoEncontrado(detalhe) }
+func Conflito(detalhe string) error       { return apierro.Conflito(detalhe) }
+func SemPermissao() error                 { return apierro.SemPermissao() }
+func NaoAutenticado(detalhe string) error { return apierro.NaoAutenticado(detalhe) }
 func Validacao(campos map[string]string) error {
-	return &ErroDominio{
-		Status: http.StatusUnprocessableEntity,
-		Titulo: "Dados inválidos",
-		Detail: "Um ou mais campos estão inválidos.",
-		Codigo: "validacao",
-		Campos: campos,
-	}
+	return apierro.Validacao(campos)
 }
 
 // apiHandler é um handler que pode devolver erro — elimina o
 // `if err != nil { w.WriteHeader(500); return }` repetido em cada handler,
 // que é onde é fácil vazar detalhe interno sem querer.
-type apiHandler func(w http.ResponseWriter, r *http.Request) error
+type apiHandler = apierro.Handler
 
 // H adapta um apiHandler para http.HandlerFunc, convertendo erro em Problema
 // pelo único ponto de conversão do backend. Nenhum handler escreve JSON de
