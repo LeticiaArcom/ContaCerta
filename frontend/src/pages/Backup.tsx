@@ -7,7 +7,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { api } from "@/core/api";
 import { baixarJSON } from "@/core/exportar";
 import { dataBR, hojeISO, moeda } from "@/core/formato";
-import { emLotes, lerBackup, previa, TAMANHO_LOTE, type Lotes, type Previa } from "@/core/importarBackup";
+import { backupDoArquivoLocal, emLotes, lerBackup, previa, TAMANHO_LOTE, type Lotes, type Previa } from "@/core/importarBackup";
 import { confirmar } from "@/core/janelas";
 import { notificar } from "@/core/toast";
 import type { ResultadoImportacao } from "@/tipos/api";
@@ -90,7 +90,11 @@ export default function Backup() {
     if (!arquivo) return;
     setNomeArquivo(arquivo.name);
     try {
-      const l = lerBackup(JSON.parse(await arquivo.text()) as unknown);
+      const texto = await arquivo.text();
+      // Aceita também o próprio conta-certa-local.html do sistema anterior:
+      // a base de lançamentos embutida nele é lida (nunca executada).
+      const ehHTML = /\.html?$/i.test(arquivo.name) || /^\s*</.test(texto);
+      const l = lerBackup(ehHTML ? backupDoArquivoLocal(texto) : (JSON.parse(texto) as unknown));
       const p = previa(l);
       if (!p.compras && !p.orcamentos && !p.cotacoes && !p.eventos && !p.fornecedores) {
         setErroArquivo("O arquivo foi reconhecido, mas não tem nenhum registro para importar.");
@@ -140,13 +144,13 @@ export default function Backup() {
         <Card>
           <CardHeader
             titulo="Importar ou restaurar backup"
-            descricao="Aceita o Backup Geral do sistema anterior (versão 1) e o backup deste sistema (versão 2)."
+            descricao="Aceita o Backup Geral do sistema anterior (versão 1), o arquivo conta-certa-local.html e o backup deste sistema (versão 2)."
           />
           <CardBody className="flex flex-col gap-3">
             <input
               ref={entrada}
               type="file"
-              accept="application/json,.json"
+              accept="application/json,.json,text/html,.html"
               className="hidden"
               onChange={(e) => void aoEscolherArquivo(e.target.files?.[0])}
               aria-label="Arquivo de backup"
@@ -157,8 +161,9 @@ export default function Backup() {
               </Button>
             </div>
             <p className="text-xs text-arcom-gray">
-              No sistema anterior, use "Baixar backup geral" na capa e escolha o arquivo aqui. Os lançamentos da base segura
-              (149 compras de 16/09/2026 a 26/10/2026) vêm dentro desse arquivo.
+              No sistema anterior, use "Baixar backup geral" na capa e escolha o arquivo aqui — ele traz tudo (compras,
+              cotações, eventos e fornecedores). Também dá para escolher o próprio arquivo conta-certa-local.html: dele vem a
+              base segura (149 compras de 16/09/2026 a 26/10/2026).
             </p>
             {erroArquivo ? <p className="rounded-md bg-danger/10 px-3 py-2 text-sm font-medium text-danger">{erroArquivo}</p> : null}
           </CardBody>

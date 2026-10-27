@@ -26,7 +26,7 @@ const td = "px-2 py-2 align-top break-words";
 function TabelaCompras({ compras, total }: { compras: Compra[]; total: number }) {
   return (
     <div className="overflow-x-auto print:overflow-visible">
-      <table className="w-full min-w-[1100px] table-fixed border-collapse text-sm print:min-w-0 print:text-[10px]">
+      <table className="w-full min-w-[1400px] table-fixed border-collapse text-sm print:min-w-0 print:text-[10px]">
         <colgroup>
           <col className="w-[7.5%]" />
           <col className="w-[7%]" />
@@ -70,9 +70,9 @@ function TabelaCompras({ compras, total }: { compras: Compra[]; total: number })
               <td className={`${td} whitespace-nowrap`}>{dataBR(c.data)}</td>
               <td className={td}>{c.solicitante}</td>
               <td className={`${td} font-semibold text-verde-escuro`}>{c.area}</td>
-              <td className={td}>{c.codigoFornecedor}</td>
+              <td className={`${td} whitespace-nowrap`}>{c.codigoFornecedor}</td>
               <td className={td}>{c.fornecedor}</td>
-              <td className={td}>{c.ocs}</td>
+              <td className={`${td} whitespace-nowrap`}>{c.ocs}</td>
               <td className={td}>
                 <span className="line-clamp-2" title={c.descricao}>
                   {c.descricao}

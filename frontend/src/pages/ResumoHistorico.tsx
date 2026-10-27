@@ -189,7 +189,7 @@ export default function ResumoHistorico() {
 
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1250px] table-fixed border-collapse text-sm">
+          <table className="w-full min-w-[1450px] table-fixed border-collapse text-sm">
             <colgroup>
               <col className="w-[7%]" />
               <col className="w-[7%]" />
@@ -240,10 +240,10 @@ export default function ResumoHistorico() {
                 const legado = c.provisionado !== "PENDENTE" && c.provisionado !== "SIM";
                 return (
                   <tr key={c.id} className={cn("border-b border-surface-border", pendente ? "bg-danger/5" : "even:bg-surface")}>
-                    <td className={td}>{dataBR(c.data)}</td>
+                    <td className={`${td} whitespace-nowrap`}>{dataBR(c.data)}</td>
                     <td className={td}>{c.solicitante}</td>
                     <td className={`${td} font-semibold text-verde-escuro`}>{c.area}</td>
-                    <td className={td}>{c.codigoFornecedor}</td>
+                    <td className={`${td} [overflow-wrap:anywhere]`}>{c.codigoFornecedor}</td>
                     <td className={td}>
                       {c.fornecedor}
                       {c.tipo === "orcamento" ? (
@@ -252,14 +252,14 @@ export default function ResumoHistorico() {
                         </Badge>
                       ) : null}
                     </td>
-                    <td className={td}>{c.ocs}</td>
+                    <td className={`${td} whitespace-nowrap`}>{c.ocs}</td>
                     <td className={td}>
                       <span className="line-clamp-2" title={c.descricao}>
                         {c.descricao}
                       </span>
                     </td>
                     <td className={`${td} whitespace-nowrap text-right font-bold text-verde-escuro`}>
-                      {c.tipo === "compra" ? moeda(c.valor) : "-"}
+                      {c.tipo === "compra" ? moeda(c.valor) : c.valor ? <span className="font-medium text-arcom-gray" title="Valor do orçamento — não entra nos totais">{moeda(c.valor)}</span> : "-"}
                     </td>
                     <td className={td}>{c.prazoPagamento}</td>
                     <td className={td}>

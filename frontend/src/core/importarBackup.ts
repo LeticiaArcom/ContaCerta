@@ -631,3 +631,56 @@ export const TAMANHO_LOTE = { fornecedores: 1000, cotacoes: 40, compras: 300, ev
 
 /** Usado pelo teste rápido: SITUACOES_HORTIFRUTI garante o mapeamento. */
 export const SITUACOES_VALIDAS_HORTIFRUTI = SITUACOES_HORTIFRUTI;
+
+function desescaparHTML(s: string): string {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n: string) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&amp;/g, "&");
+}
+
+/** Recorta o array JSON que começa em `inicio` (respeitando strings). */
+function recortarArray(t: string, inicio: number): string | null {
+  let nivel = 0;
+  let emTexto = false;
+  for (let i = inicio; i < t.length; i++) {
+    const ch = t[i];
+    if (emTexto) {
+      if (ch === "\\") i++;
+      else if (ch === '"') emTexto = false;
+    } else if (ch === '"') emTexto = true;
+    else if (ch === "[") nivel++;
+    else if (ch === "]" && --nivel === 0) return t.slice(inicio, i + 1);
+  }
+  return null;
+}
+
+/**
+ * Lê o arquivo conta-certa-local.html do sistema anterior e devolve a base
+ * de lançamentos que vem embutida nele (historicoInicial), no formato de um
+ * Backup Geral v1. Só LÊ o texto: nada do arquivo é executado.
+ */
+export function backupDoArquivoLocal(html: string): unknown {
+  // As telas antigas ficam escapadas dentro de srcdoc: procura nelas
+  // (desescapadas) antes do HTML cru.
+  const fontes = [...[...html.matchAll(/srcdoc="([^"]*)"/g)].map((m) => desescaparHTML(m[1] ?? "")), html];
+  for (const f of fontes) {
+    const marca = /const\s+historicoInicial\s*=\s*\[/.exec(f);
+    if (!marca) continue;
+    const texto = recortarArray(f, marca.index + marca[0].length - 1);
+    if (!texto) continue;
+    let base: unknown;
+    try {
+      base = JSON.parse(texto);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(base) || !base.length) continue;
+    return { format: "conta-certa-backup-geral", version: 1, data: { contacerta_resumo_v1: JSON.stringify(base) } };
+  }
+  throw new Error("Este HTML não tem a base de lançamentos do Conta Certa anterior.");
+}
