@@ -93,8 +93,8 @@ func (s *Service) Criar(ctx context.Context, usuarioID uuid.UUID, e Entrada) (*E
 	id := uuid.New()
 	agora := time.Now().UTC()
 	data, _ := db.ParseData(e.Data)
-	ev := &Evento{ID: id, Nome: campos["nome"].(string), Situacao: e.Situacao, Data: data,
-		Despesas: db.JSON(campos["despesas"].(string)), Versao: 1,
+	ev := &Evento{ID: id, Nome: strings.TrimSpace(e.Nome), Situacao: e.Situacao, Data: data,
+		Despesas: db.JSON("[]"), Versao: 1,
 		CriadoPor: ptr(usuarioID), AtualizadoPor: ptr(usuarioID), CriadoEm: agora, AtualizadoEm: agora}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(ev).Error; err != nil {

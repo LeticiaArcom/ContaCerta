@@ -51,7 +51,7 @@ func TextoDoPDF(w http.ResponseWriter, r *http.Request) error {
 	}
 	defer os.Remove(tmp.Name())
 	if _, err := io.Copy(tmp, arquivo); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return err
 	}
 	if err := tmp.Close(); err != nil {

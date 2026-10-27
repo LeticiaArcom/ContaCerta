@@ -190,9 +190,9 @@ func (s *Service) salvar(ctx context.Context, usuarioID, id uuid.UUID, e Entrada
 		}
 		if nova {
 			c := &Cotacao{ID: id, Modulo: e.Modulo, Categoria: e.Categoria, Formato: e.Formato,
-				Titulo: campos["titulo"].(string), OCS: campos["ocs"].(string), Data: data, Periodo: campos["periodo"].(string),
-				Solicitante: campos["solicitante"].(string), CentroCusto: campos["centro_custo"].(string),
-				Situacao: e.Situacao, Provisionado: e.Provisionado, Descricao: campos["descricao"].(string),
+				Titulo: strings.TrimSpace(e.Titulo), OCS: strings.TrimSpace(e.OCS), Data: data, Periodo: strings.TrimSpace(e.Periodo),
+				Solicitante: strings.TrimSpace(e.Solicitante), CentroCusto: strings.TrimSpace(e.CentroCusto),
+				Situacao: e.Situacao, Provisionado: e.Provisionado, Descricao: strings.TrimSpace(e.Descricao),
 				Conteudo: conteudo, TotalEscolhido: total, PedidoID: pedidoID, Versao: 1,
 				CriadoPor: ptr(usuarioID), AtualizadoPor: ptr(usuarioID), CriadoEm: agora, AtualizadoEm: agora}
 			if err := tx.Create(c).Error; err != nil {
