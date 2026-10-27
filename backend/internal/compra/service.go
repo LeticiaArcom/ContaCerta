@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -276,6 +277,11 @@ func Sincronizar(ctx context.Context, tx *gorm.DB, usuarioID, cotacaoID uuid.UUI
 	for _, c := range atuais {
 		porChave[c.OrigemChave] = c
 	}
+	// Lançamentos importados do sistema anterior ("legado:") são adotados
+	// pela linha equivalente (mesmo fornecedor, ou o único que sobrou), em vez
+	// de excluídos e recriados — assim o id e o provisionado, autorizador e
+	// aprovador lançados lá continuam.
+	adotar(porChave, linhas)
 	agora := time.Now().UTC()
 	manter := make(map[string]bool, len(linhas))
 	for _, l := range linhas {
@@ -284,13 +290,13 @@ func Sincronizar(ctx context.Context, tx *gorm.DB, usuarioID, cotacaoID uuid.UUI
 		if atual, ok := porChave[l.Chave]; ok {
 			err := tx.Model(&Compra{}).Where("id = ?", atual.ID).
 				Select("tipo", "data", "solicitante", "area", "cnpj", "codigo_fornecedor", "fornecedor", "ocs",
-					"descricao", "valor", "prazo_pagamento", "situacao", "versao", "atualizado_por", "atualizado_em").
+					"descricao", "valor", "prazo_pagamento", "situacao", "origem_chave", "versao", "atualizado_por", "atualizado_em").
 				Updates(map[string]any{
 					"tipo": l.Tipo, "data": l.Data, "solicitante": l.Solicitante, "area": l.Area, "cnpj": l.CNPJ,
 					"codigo_fornecedor": l.CodigoFornecedor, "fornecedor": l.Fornecedor, "ocs": l.OCS,
 					"descricao": l.Descricao, "valor": l.Valor, "prazo_pagamento": l.PrazoPagamento,
-					"situacao": l.Situacao, "versao": gorm.Expr("versao + 1"), "atualizado_por": ptr(usuarioID),
-					"atualizado_em": agora,
+					"situacao": l.Situacao, "origem_chave": l.Chave, "versao": gorm.Expr("versao + 1"),
+					"atualizado_por": ptr(usuarioID), "atualizado_em": agora,
 				}).Error
 			if err != nil {
 				return err
@@ -328,4 +334,50 @@ func Sincronizar(ctx context.Context, tx *gorm.DB, usuarioID, cotacaoID uuid.UUI
 func ExcluirDaOrigem(ctx context.Context, tx *gorm.DB, cotacaoID uuid.UUID) error {
 	return tx.WithContext(ctx).Model(&Compra{}).Where("origem_cotacao_id = ? AND excluido_em IS NULL", cotacaoID).
 		Update("excluido_em", time.Now().UTC()).Error
+}
+
+// adotar liga linhas novas da cotação a lançamentos "legado:" ainda sem
+// par: primeiro pelo mesmo fornecedor; se sobrar exatamente um lançamento
+// legado e uma linha sem par, liga os dois. Altera porChave no lugar.
+func adotar(porChave map[string]Compra, linhas []LinhaOrigem) {
+	var legados []string
+	for chave := range porChave {
+		if strings.HasPrefix(chave, "legado:") {
+			legados = append(legados, chave)
+		}
+	}
+	if len(legados) == 0 {
+		return
+	}
+	sort.Strings(legados)
+	usado := map[string]bool{}
+	var semPar []LinhaOrigem
+	for _, l := range linhas {
+		if _, ok := porChave[l.Chave]; ok {
+			continue
+		}
+		achou := false
+		for _, k := range legados {
+			if !usado[k] && l.Fornecedor != "" && strings.EqualFold(strings.TrimSpace(porChave[k].Fornecedor), strings.TrimSpace(l.Fornecedor)) {
+				porChave[l.Chave] = porChave[k]
+				delete(porChave, k)
+				usado[k] = true
+				achou = true
+				break
+			}
+		}
+		if !achou {
+			semPar = append(semPar, l)
+		}
+	}
+	var restantes []string
+	for _, k := range legados {
+		if !usado[k] {
+			restantes = append(restantes, k)
+		}
+	}
+	if len(restantes) == 1 && len(semPar) == 1 {
+		porChave[semPar[0].Chave] = porChave[restantes[0]]
+		delete(porChave, restantes[0])
+	}
 }

@@ -12,6 +12,7 @@
 // Tudo é upsert pelo id no backend: importar o mesmo arquivo de novo não
 // duplica nada. Funções puras (sem chamada de rede) — testáveis isoladas.
 import {
+  AREAS_RESUMO,
   CATEGORIAS_HORTIFRUTI,
   DEPARTAMENTOS_CONSUMO,
   MODELO_TREINAMENTO,
@@ -184,12 +185,35 @@ function ehBackupAntigo(raiz: Obj, chaves: Record<string, unknown>): boolean {
   return Object.keys(chaves).length > 0 && !formato;
 }
 
+/** Junta grafias diferentes da mesma área ("Comercial -Vendas" e
+ * "Comercial - Vendas", "Juridico" e "Jurídico") no nome da lista oficial.
+ * Área fora da lista fica como veio. */
+function areaPadrao(area: string): string {
+  const chave = (s: string) => semAcento(s).replace(/[^A-Z0-9]/g, "");
+  const k = chave(area);
+  return AREAS_RESUMO.find((a) => chave(a) === k) ?? area;
+}
+
 function compraAntiga(o: Obj, i: number): CompraImportada | null {
   const data = dataISO(campo(o, "data", "date", "dia"));
   if (!data) return null;
-  const situacao = texto(campo(o, "situacao", "status", "situacaoOrcamento"), 60);
-  const tipoTexto = texto(campo(o, "tipo", "type", "kind"), 40).toLowerCase();
-  const orcamento = /COTA|NEGOCIA/.test(semAcento(situacao)) || tipoTexto === "orcamento" || tipoTexto === "cotacao" || tipoTexto === "quote";
+  let situacao = texto(campo(o, "situacao", "status", "situacaoOrcamento"), 60);
+  const tipoTexto = semAcento(texto(campo(o, "tipoRegistro", "tipo", "type", "kind"), 40)).toLowerCase();
+  // Mesma regra do Resumo Inteligente antigo: é cotação em andamento quando
+  // tipoRegistro = COTACAO, ou o prazo traz a situação ("EM COTAÇÃO"/"EM
+  // NEGOCIAÇÃO"), ou a descrição começa com "COTAÇÃO".
+  let prazo = texto(campo(o, "prazo", "prazoPagamento", "pagamento", "payment"), 200);
+  const prazoEhSituacao = /^EM (COTACAO|NEGOCIACAO)$/.test(semAcento(prazo.toUpperCase()));
+  const descricaoBruta = texto(campo(o, "descricao", "description", "detalhes"), 4000);
+  const orcamento =
+    /COTA|NEGOCIA/.test(semAcento(situacao.toUpperCase())) ||
+    ["orcamento", "cotacao", "quote"].includes(tipoTexto) ||
+    prazoEhSituacao ||
+    /^COTACAO\b/.test(semAcento(descricaoBruta.toUpperCase()));
+  if (prazoEhSituacao) {
+    if (!situacao) situacao = prazo.toUpperCase();
+    prazo = "";
+  }
   const fornecedor = texto(campo(o, "fornecedor", "supplier", "nomeFornecedor"));
   const ocs = texto(campo(o, "ocs", "OCS"), 60);
   const valor = naoNegativo(campo(o, "valor", "value", "total")) ?? 0;
@@ -199,14 +223,14 @@ function compraAntiga(o: Obj, i: number): CompraImportada | null {
     tipo: orcamento ? "orcamento" : "compra",
     data,
     solicitante: texto(campo(o, "solicitante", "requester"), 200),
-    area: texto(campo(o, "area", "departamento", "department"), 120),
+    area: areaPadrao(texto(campo(o, "area", "departamento", "department"), 120)),
     cnpj: texto(o.cnpj, 40),
     codigoFornecedor: texto(campo(o, "codigo", "codigoFornecedor", "codFornecedor", "supplierCode"), 60),
     fornecedor,
     ocs,
     descricao: texto(campo(o, "descricao", "description", "detalhes"), 4000),
     valor: Math.round(valor * 100) / 100,
-    prazoPagamento: texto(campo(o, "prazo", "prazoPagamento", "pagamento", "payment"), 200),
+    prazoPagamento: prazo,
     provisionado: texto(campo(o, "provisionado", "provisioned"), 40),
     autorizador: texto(campo(o, "autorizador", "authorizer"), 200),
     aprovador: texto(campo(o, "aprovador", "approver"), 200),
@@ -307,12 +331,20 @@ function situacaoCotacao(modulo: "hortifruti" | "consumo", status: unknown): str
 }
 
 function cotacaoAntiga(cot: Obj, pai: Obj | null, i: number): CotacaoImportada {
-  const id = texto(campo(cot, "id", "quoteId", "orcamentoId"), 120) || texto(pai && campo(pai, "id"), 120) || `legado-cotacao-${i}`;
+  // No sistema anterior o id da cotação é o do registro do histórico
+  // (historyId) — é o mesmo que os lançamentos do Resumo guardam em
+  // origemOrcamentoId, por isso o vínculo se mantém.
+  const id =
+    texto(campo(cot, "historyId", "id", "quoteId", "orcamentoId"), 120) || texto(pai && campo(pai, "id"), 120) || `legado-cotacao-${i}`;
   const tipoTexto = semAcento(
-    [campo(cot, "quoteType", "tipoCotacao", "tipo", "type", "kind"), pai && campo(pai, "tipo", "type", "kind")].map((x) => texto(x, 80)).join(" "),
+    [campo(cot, "category", "quoteType", "tipoCotacao", "tipo", "type", "kind"), pai && campo(pai, "tipo", "type", "kind")]
+      .map((x) => texto(x, 80))
+      .join(" "),
   );
   const departamento = texto(campo(cot, "department", "departamento", "area"), 120);
-  const hortifruti = !departamento && /CARNE|FRUTA|VERDURA|MISTA|HORTI/.test(tipoTexto);
+  // Cotação de carnes antiga = snapshot em meatSnapshot, com "category".
+  const ehCarnes = !!pai && pai.meatSnapshot === cot;
+  const hortifruti = ehCarnes || (!departamento && /CARNE|FRUTA|VERDURA|MISTA|HORTI/.test(tipoTexto));
   const modulo = hortifruti ? "hortifruti" : "consumo";
   let categoria: string;
   if (modulo === "hortifruti") {
@@ -326,16 +358,18 @@ function cotacaoAntiga(cot: Obj, pai: Obj | null, i: number): CotacaoImportada {
     .slice(0, 40)
     .map((s, k) => {
       const termos = ehObj(abrir(s.terms)) ? (abrir(s.terms) as Obj) : s;
+      // dados comerciais ficavam em "details" no sistema anterior
+      const det = ehObj(abrir(s.details)) ? { ...s, ...(abrir(s.details) as Obj) } : s;
       return {
         id: texto(campo(s, "id"), 60) || `f${k}`,
         nome: texto(campo(s, "name", "nome"), 200),
         fornecedorId: "",
-        codigo: texto(campo(s, "code", "codigo"), 40),
-        cnpj: texto(s.cnpj, 20),
-        contato: texto(campo(s, "contact", "contato"), 120),
-        telefone: texto(campo(s, "phone", "telefone"), 40),
-        email: texto(s.email, 200),
-        endereco: texto(campo(s, "address", "endereco"), 300),
+        codigo: texto(campo(det, "code", "codigo"), 40),
+        cnpj: texto(det.cnpj, 20),
+        contato: texto(campo(det, "contact", "contato"), 120),
+        telefone: texto(campo(det, "phone", "telefone"), 40),
+        email: texto(det.email, 200),
+        endereco: texto(campo(det, "address", "endereco"), 300),
         pagamento: texto(campo(termos, "payment", "pagamento"), 120),
         entrega: texto(campo(termos, "delivery", "entrega"), 120),
         frete: texto(campo(termos, "freight", "frete"), 120),
@@ -350,6 +384,10 @@ function cotacaoAntiga(cot: Obj, pai: Obj | null, i: number): CotacaoImportada {
   }
 
   const selecoes = abrir(campo(cot, "selections", "selecoes", "manualSelections", "escolhas"));
+  // Quantidades alternativas: escolha manual única {itemId, supplierId}.
+  const alternativa = abrir(campo(cot, "alternativeSelection"));
+  const altItem = ehObj(alternativa) ? texto(alternativa.itemId, 60) : "";
+  const altForn = ehObj(alternativa) ? texto(alternativa.supplierId, 60) : "";
   const itens: ItemCotacao[] = arrayDeObjetos(campo(cot, "items", "itens"))
     .slice(0, 500)
     .map((it, k) => {
@@ -361,6 +399,7 @@ function cotacaoAntiga(cot: Obj, pai: Obj | null, i: number): CotacaoImportada {
       }
       let selecionado = texto(campo(it, "selected", "selecionado", "manualSupplier", "chosenSupplier"), 60);
       if (!selecionado && ehObj(selecoes)) selecionado = texto(selecoes[idItem], 60);
+      if (!selecionado && altItem && altItem === idItem) selecionado = altForn;
       return {
         id: idItem,
         nome: texto(campo(it, "name", "nome"), 300),
@@ -391,7 +430,7 @@ function cotacaoAntiga(cot: Obj, pai: Obj | null, i: number): CotacaoImportada {
     centroCusto: texto(campo(cot, "costCenter", "centroCusto"), 120),
     situacao: situacaoCotacao(modulo, campo(cot, "status", "situacao")),
     provisionado: semAcento(texto(campo(cot, "provisioned", "provisionado"), 20)) === "SIM" ? "SIM" : "PENDENTE",
-    descricao: texto(campo(cot, "specifications", "descricao", "description", "observacao"), 4000),
+    descricao: texto(campo(cot, "specifications", "notes", "descricao", "description", "observacao"), 4000),
     conteudo: { fornecedores, itens, pedidos: {} },
     pedidoId: "",
     versao: 0,
