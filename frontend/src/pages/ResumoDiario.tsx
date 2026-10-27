@@ -20,7 +20,7 @@ function somarDias(iso: string, dias: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-const th = "px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-white align-bottom";
+const th = "px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-white align-bottom break-words";
 const td = "px-2 py-2 align-top break-words";
 
 function TabelaCompras({ compras, total }: { compras: Compra[]; total: number }) {
@@ -28,18 +28,18 @@ function TabelaCompras({ compras, total }: { compras: Compra[]; total: number })
     <div className="overflow-x-auto print:overflow-visible">
       <table className="w-full min-w-[1100px] table-fixed border-collapse text-sm print:min-w-0 print:text-[10px]">
         <colgroup>
-          <col className="w-[6.5%]" />
           <col className="w-[7.5%]" />
-          <col className="w-[9%]" />
-          <col className="w-[6%]" />
-          <col className="w-[12%]" />
-          <col className="w-[6%]" />
-          <col className="w-[18%]" />
-          <col className="w-[9%]" />
-          <col className="w-[8%]" />
           <col className="w-[7%]" />
+          <col className="w-[8.5%]" />
           <col className="w-[5.5%]" />
+          <col className="w-[11.5%]" />
           <col className="w-[5.5%]" />
+          <col className="w-[16%]" />
+          <col className="w-[8.5%]" />
+          <col className="w-[7%]" />
+          <col className="w-[8.5%]" />
+          <col className="w-[7.25%]" />
+          <col className="w-[7.25%]" />
         </colgroup>
         <thead className="bg-verde-escuro">
           <tr>
@@ -52,7 +52,7 @@ function TabelaCompras({ compras, total }: { compras: Compra[]; total: number })
             <th className={th}>Descrição</th>
             <th className={`${th} text-right`}>Valor</th>
             <th className={th}>Prazo</th>
-            <th className={`${th} text-center`}>Provisionado</th>
+            <th className={`${th} text-center`}>Provisio&shy;nado</th>
             <th className={th}>Autorizador</th>
             <th className={th}>Aprovador</th>
           </tr>
@@ -67,7 +67,7 @@ function TabelaCompras({ compras, total }: { compras: Compra[]; total: number })
           ) : null}
           {compras.map((c) => (
             <tr key={c.id} className="border-b border-surface-border even:bg-surface">
-              <td className={td}>{dataBR(c.data)}</td>
+              <td className={`${td} whitespace-nowrap`}>{dataBR(c.data)}</td>
               <td className={td}>{c.solicitante}</td>
               <td className={`${td} font-semibold text-verde-escuro`}>{c.area}</td>
               <td className={td}>{c.codigoFornecedor}</td>

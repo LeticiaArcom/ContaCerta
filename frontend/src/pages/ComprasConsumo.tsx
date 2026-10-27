@@ -1,5 +1,11 @@
-import { TituloTela } from "@/components/Layout";
+import { PaginaCotacao } from "@/components/cotacao/PaginaCotacao";
 
 export default function ComprasConsumo() {
-  return <TituloTela titulo="ComprasConsumo" descricao="Em construção." />;
+  return (
+    <PaginaCotacao
+      modulo="consumo"
+      titulo="Compras de consumo"
+      descricao="Cotações para Marketing, Informática, Estoque, Manutenção Patrimonial, Almoxarifado, Treinamentos, Eventos e demais áreas. Todo orçamento salvo aparece no Resumo Diário."
+    />
+  );
 }
