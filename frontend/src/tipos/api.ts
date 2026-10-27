@@ -45,6 +45,7 @@ export type Compra = {
   aprovador: string;
   situacao: string;
   origemCotacaoId: string | null;
+  origemChave: string;
   versao: number;
   criadoEm: string;
   atualizadoEm: string;
@@ -52,7 +53,7 @@ export type Compra = {
 
 export type EntradaCompra = Omit<
   Compra,
-  "id" | "origemCotacaoId" | "criadoEm" | "atualizadoEm" | "provisionado"
+  "id" | "origemCotacaoId" | "origemChave" | "criadoEm" | "atualizadoEm" | "provisionado"
 > & { provisionado: Provisionado };
 
 export type TotaisCompras = { quantidade: number; valorTotal: number };

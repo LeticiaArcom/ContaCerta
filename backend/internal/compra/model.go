@@ -34,7 +34,7 @@ type Compra struct {
 	Aprovador        string     `json:"aprovador"`
 	Situacao         string     `json:"situacao"`
 	OrigemCotacaoID  *uuid.UUID `gorm:"type:uuid" json:"origemCotacaoId"`
-	OrigemChave      string     `json:"-"`
+	OrigemChave      string     `json:"origemChave"`
 	Versao           int        `json:"versao"`
 	CriadoPor        *uuid.UUID `gorm:"type:uuid" json:"-"`
 	AtualizadoPor    *uuid.UUID `gorm:"type:uuid" json:"-"`

@@ -64,6 +64,9 @@ type CompraImportada struct {
 	Aprovador        string  `json:"aprovador" validate:"max=200"`
 	Situacao         string  `json:"situacao" validate:"max=60"`
 	OrigemCotacao    string  `json:"origemCotacao" validate:"max=120"`
+	// OrigemChave vem do backup deste sistema (ex.: "forn:<id>"); vazia no
+	// sistema anterior.
+	OrigemChave string `json:"origemChave" validate:"max=120"`
 }
 
 type LoteCompras struct {
@@ -180,9 +183,13 @@ func upsertCompra(ctx context.Context, tx *gorm.DB, uid uuid.UUID, c CompraImpor
 		OrigemCotacaoID: origem, Versao: 1, CriadoPor: uidPtr, AtualizadoPor: uidPtr, CriadoEm: agora, AtualizadoEm: agora,
 	}
 	if origem != nil {
-		// Chave "legado": na próxima edição da cotação, a sincronização do
-		// Resumo substitui este lançamento pelos atuais — sem duplicar.
-		linha.OrigemChave = "legado:" + linha.ID
+		linha.OrigemChave = limpar(c.OrigemChave)
+		if linha.OrigemChave == "" {
+			// Chave "legado" (sistema anterior): na próxima edição da
+			// cotação, a sincronização do Resumo substitui este lançamento
+			// pelos atuais — sem duplicar.
+			linha.OrigemChave = "legado:" + linha.ID
+		}
 	}
 	var existente int64
 	if err := tx.Model(&compra.Compra{}).Where("id = ?", linha.ID).Count(&existente).Error; err != nil {
@@ -190,9 +197,15 @@ func upsertCompra(ctx context.Context, tx *gorm.DB, uid uuid.UUID, c CompraImpor
 	}
 	err := tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"tipo", "data", "solicitante", "area", "cnpj", "codigo_fornecedor",
+		// Um vínculo com cotação que já existe nunca é trocado pela
+		// importação (senão a próxima sincronização do Resumo recriaria o
+		// lançamento e perderia provisionado/autorizador/aprovador).
+		DoUpdates: append(clause.AssignmentColumns([]string{"tipo", "data", "solicitante", "area", "cnpj", "codigo_fornecedor",
 			"fornecedor", "ocs", "descricao", "valor", "prazo_pagamento", "provisionado", "autorizador", "aprovador",
-			"situacao", "origem_cotacao_id", "origem_chave", "atualizado_por", "atualizado_em"}),
+			"situacao", "atualizado_por", "atualizado_em"}),
+			clause.Assignment{Column: clause.Column{Name: "origem_cotacao_id"}, Value: gorm.Expr("CASE WHEN compras.origem_chave <> '' THEN compras.origem_cotacao_id ELSE excluded.origem_cotacao_id END")},
+			clause.Assignment{Column: clause.Column{Name: "origem_chave"}, Value: gorm.Expr("CASE WHEN compras.origem_chave <> '' THEN compras.origem_chave ELSE excluded.origem_chave END")},
+		),
 	}).Create(&linha).Error
 	if err != nil {
 		return false, err
