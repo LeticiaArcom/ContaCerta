@@ -92,6 +92,38 @@ func TestOrigemInvalidaBloqueiaEscritaCrossOrigin(t *testing.T) {
 	}
 }
 
+func TestOrigemViaProxyDeDesenvolvimento(t *testing.T) {
+	handler := novoServidorDeTeste(t)
+
+	casos := []struct {
+		nome        string
+		origem      string
+		host        string
+		encaminhado string
+		statusQuer  int
+	}{
+		// proxy do Vite: Host trocado pro backend, original no X-Forwarded-Host
+		{"origem igual ao host encaminhado passa", "http://localhost:5173", "localhost:3000", "localhost:5173", http.StatusNotFound},
+		{"origem diferente do encaminhado é barrada", "http://evil.example.com", "localhost:3000", "localhost:5173", http.StatusForbidden},
+		{"sem encaminhado vale o Host", "http://app.arcom.com.br", "app.arcom.com.br", "", http.StatusNotFound},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/qualquer", nil)
+			req.Host = c.host
+			req.Header.Set("Origin", c.origem)
+			if c.encaminhado != "" {
+				req.Header.Set("X-Forwarded-Host", c.encaminhado)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != c.statusQuer {
+				t.Fatalf("status = %d, quer %d", rec.Code, c.statusQuer)
+			}
+		})
+	}
+}
+
 func TestHeadersDeSegurancaSempreParticipam(t *testing.T) {
 	handler := novoServidorDeTeste(t)
 

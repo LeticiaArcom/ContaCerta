@@ -50,15 +50,21 @@ var metodosQueMudamEstado = map[string]bool{
 // em qualquer requisição de qualquer origem — SameSite=Lax barra a maioria,
 // mas isso aqui é a segunda camada: em todo método que muda estado, se o
 // header Origin vier preenchido, ele tem que apontar pro mesmo host da
-// requisição. Requisição same-origin via proxy do Vite sempre bate; um site
-// de terceiro tentando forjar um POST não.
+// requisição. Um site de terceiro tentando forjar um POST não bate.
+//
+// O proxy do Vite (dev) troca o Host pelo do backend (changeOrigin) e guarda
+// o original em X-Forwarded-Host — por isso ele também vale. Um site de
+// terceiro não consegue mandar esse header: header customizado de outra
+// origem exige preflight de CORS, que este backend nunca libera.
 func (s *Servidor) origemPermitida(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if metodosQueMudamEstado[r.Method] {
 			origem := r.Header.Get("Origin")
 			if origem != "" {
 				u, err := url.Parse(origem)
-				if err != nil || !strings.EqualFold(u.Host, r.Host) {
+				encaminhado := strings.TrimSpace(strings.SplitN(r.Header.Get("X-Forwarded-Host"), ",", 2)[0])
+				mesmoHost := err == nil && (strings.EqualFold(u.Host, r.Host) || (encaminhado != "" && strings.EqualFold(u.Host, encaminhado)))
+				if !mesmoHost {
 					s.escreverProblema(w, r, http.StatusForbidden,
 						"Origem não permitida", "Requisição de origem não confiável.", "origem_invalida", nil)
 					return
