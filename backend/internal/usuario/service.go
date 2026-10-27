@@ -85,7 +85,7 @@ func (s *Service) criarSessao(ctx context.Context, usuarioID uuid.UUID) (string,
 // vencido e o usuário continuar ativo. Guardamos só o hash do token: quem
 // lê o banco não consegue se passar por ninguém.
 func (s *Service) Validar(ctx context.Context, token string) (*Usuario, error) {
-	if token == "" || len(token) > 100 {
+	if len(token) == 0 || len(token) > 100 {
 		return nil, errors.New("token inválido")
 	}
 	var u Usuario

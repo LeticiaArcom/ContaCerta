@@ -238,7 +238,7 @@ func (h *Handler) eventos(w http.ResponseWriter, r *http.Request) error {
 func criarEventoComID(ctx context.Context, gdb *gorm.DB, uid, id uuid.UUID, e evento.Entrada) error {
 	agora := time.Now().UTC()
 	// Pode existir como excluído: reativa em vez de colidir na chave.
-	if err := gdb.WithContext(ctx).Exec("DELETE FROM eventos WHERE id = ? AND excluido_em IS NOT NULL", id).Error; err != nil {
+	if err := gdb.WithContext(ctx).Where("id = ? AND excluido_em IS NOT NULL", id).Delete(&evento.Evento{}).Error; err != nil {
 		return err
 	}
 	ev := &evento.Evento{ID: id, Nome: e.Nome, Situacao: e.Situacao, Despesas: db.JSON("[]"), Versao: 1, CriadoEm: agora, AtualizadoEm: agora}

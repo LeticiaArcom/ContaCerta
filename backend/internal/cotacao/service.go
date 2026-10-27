@@ -199,7 +199,7 @@ func (s *Service) salvar(ctx context.Context, usuarioID, id uuid.UUID, e Entrada
 				return err
 			}
 			if pedidoID != nil {
-				res := tx.Table("pedidos_restaurante").Where("id = ? AND excluido_em IS NULL AND cotacao_id IS NULL", *pedidoID).
+				res := tx.Table("pedidos_restaurante").Where("id = ? AND excluido_em IS NULL AND cotacao_id IS NULL", *pedidoID).Select("cotacao_id", "situacao", "versao", "atualizado_em").
 					Updates(map[string]any{"cotacao_id": id, "situacao": "EM COTAÇÃO", "versao": gorm.Expr("versao + 1"), "atualizado_em": agora})
 				if res.Error != nil {
 					return res.Error
@@ -210,8 +210,7 @@ func (s *Service) salvar(ctx context.Context, usuarioID, id uuid.UUID, e Entrada
 			}
 		} else {
 			campos["versao"] = gorm.Expr("versao + 1")
-			res := tx.Model(&Cotacao{}).Where("id = ? AND versao = ? AND excluido_em IS NULL", id, e.Versao).
-				Select(keys(campos)).Updates(campos)
+			res := tx.Model(&Cotacao{}).Where("id = ? AND versao = ? AND excluido_em IS NULL", id, e.Versao).Select(keys(campos)).Updates(campos)
 			if res.Error != nil {
 				return res.Error
 			}
@@ -343,7 +342,7 @@ func (s *Service) sincronizarResumo(ctx context.Context, tx *gorm.DB, usuarioID,
 // Excluir é lógico e leva junto os lançamentos que a cotação gerou no Resumo.
 func (s *Service) Excluir(ctx context.Context, usuarioID, id uuid.UUID) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&Cotacao{}).Where("id = ? AND excluido_em IS NULL", id).
+		res := tx.Model(&Cotacao{}).Where("id = ? AND excluido_em IS NULL", id).Select("excluido_em", "atualizado_por").
 			Updates(map[string]any{"excluido_em": time.Now().UTC(), "atualizado_por": ptr(usuarioID)})
 		if res.Error != nil {
 			return res.Error
@@ -355,7 +354,7 @@ func (s *Service) Excluir(ctx context.Context, usuarioID, id uuid.UUID) error {
 			return err
 		}
 		// Pedido do restaurante volta a ficar disponível pra nova cotação.
-		if err := tx.Table("pedidos_restaurante").Where("cotacao_id = ?", id).
+		if err := tx.Table("pedidos_restaurante").Where("cotacao_id = ?", id).Select("cotacao_id", "situacao", "versao").
 			Updates(map[string]any{"cotacao_id": nil, "situacao": "ENVIADO", "versao": gorm.Expr("versao + 1")}).Error; err != nil {
 			return err
 		}
