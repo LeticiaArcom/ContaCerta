@@ -20,8 +20,8 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "Meu Projeto ARCOM",
-        short_name: "Projeto",
+        name: "Conta Certa | Compras e Eventos",
+        short_name: "Conta Certa",
         theme_color: "#007840",
       },
     }),

@@ -13,6 +13,7 @@ import (
 	"meu-projeto/internal/fornecedor"
 	"meu-projeto/internal/importacao"
 	"meu-projeto/internal/pedido"
+	"meu-projeto/internal/rascunho"
 	"meu-projeto/internal/usuario"
 )
 
@@ -23,7 +24,8 @@ import (
 //
 // Acesso:
 //   - público: login, logout e configuração inicial (primeira conta);
-//   - qualquer sessão: quem sou eu, pedidos do restaurante, leitura de PDF;
+//   - qualquer sessão: quem sou eu, pedidos do restaurante, rascunhos
+//     (sempre do próprio usuário), leitura de PDF;
 //   - papel "compras": todo o resto.
 func (s *Servidor) rotas() {
 	usuarios := usuario.NovoHandler(s.usuarios, s.cfg.Env == "production")
@@ -34,6 +36,7 @@ func (s *Servidor) rotas() {
 	pedidos := pedido.NovoHandler(s.db)
 	eventos := evento.NovoHandler(evento.NovoService(s.db))
 	importacoes := importacao.NovoHandler(s.db, cotacoesSvc)
+	rascunhos := rascunho.NovoHandler(s.db)
 
 	s.router.Route("/api", func(api chi.Router) {
 		api.Get("/health", s.saude)
@@ -60,6 +63,7 @@ func (s *Servidor) rotas() {
 					priv.Use(s.exigirSessao)
 					usuarios.RotasSessao(priv, s.H)
 					pedidos.Rotas(priv, s.H)
+					rascunhos.Rotas(priv, s.H)
 
 					priv.Group(func(adm chi.Router) {
 						adm.Use(s.exigirPapel(usuario.PapelCompras))

@@ -4,19 +4,13 @@
 // localStorage) — quem decide acesso é sempre o backend, na hora da
 // requisição real (ver padroes/02-frontend.md, item "Sessão").
 import { useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import type { Papel, Usuario } from "@/tipos/api";
 import { api, configurarApi } from "./api";
 import { notificar } from "./toast";
 
-// Ajuste os campos conforme o projeto — o que importa é o formato do
-// contrato: sempre o retorno mais recente do backend, nunca algo
-// recalculado/guardado no front.
-export type Usuario = {
-  id: string;
-  nome: string;
-  email: string;
-};
+export type { Usuario };
 
 const CHAVE_SESSAO = ["sessao"] as const;
 
@@ -46,6 +40,40 @@ export function useSessao() {
   return { usuario: data ?? null, carregando: isLoading };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export function useLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (credenciais: { email: string; senha: string }) =>
+      (await api.post<Usuario>("/sessao", credenciais, { skipErroGlobal: true })).data,
+    onSuccess: (u) => queryClient.setQueryData(CHAVE_SESSAO, u),
+  });
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useConfiguracaoInicial() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (dados: { nome: string; email: string; senha: string }) =>
+      (await api.post<Usuario>("/sessao/configuracao-inicial", dados)).data,
+    onSuccess: (u) => queryClient.setQueryData(CHAVE_SESSAO, u),
+  });
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useLogout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      await api.post("/sessao/logout");
+    },
+    onSettled: () => {
+      queryClient.clear();
+      queryClient.setQueryData(CHAVE_SESSAO, null);
+    },
+  });
+}
+
 /**
  * Liga o cliente axios ao ciclo de vida da sessão. Monte uma vez, na raiz do
  * app (ver App.tsx).
@@ -65,14 +93,17 @@ export function ProvedorDeSessao({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** Layout route de guarda — envolva as rotas privadas com ela em rotas.tsx. */
-export function RotaProtegida() {
+/** Layout route de guarda — envolva as rotas privadas com ela em rotas.tsx.
+ * Com `papel`, só esse papel entra (o backend recusa do mesmo jeito; aqui
+ * é só pra não mostrar uma tela que daria erro). */
+export function RotaProtegida({ papel }: { papel?: Papel }) {
   const { usuario, carregando } = useSessao();
   const location = useLocation();
 
   if (carregando) return null;
   if (!usuario)
     return <Navigate to="/login" state={{ de: location }} replace />;
+  if (papel && usuario.papel !== papel) return <Navigate to="/" replace />;
 
   return <Outlet />;
 }

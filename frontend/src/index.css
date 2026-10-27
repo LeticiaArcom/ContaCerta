@@ -18,3 +18,27 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Impressão / salvar em PDF: só o conteúdo, sem menu, fundo branco, cores
+   preservadas (cabeçalho verde das tabelas). */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+  body {
+    @apply bg-white;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* Remove as setinhas dos campos numéricos nas grades (mais espaço útil). */
+input[type="number"].sem-setas::-webkit-outer-spin-button,
+input[type="number"].sem-setas::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"].sem-setas {
+  -moz-appearance: textfield;
+}
